@@ -1,0 +1,29 @@
+{
+  "name": "promiventerator",
+  "version": "0.0.1-beta.0",
+  "description": "A Promise that's also an async EventEmitter that's also a filterable AsyncIterable. Fully typed, and cancelable. Lets a single function return a result that allows the caller to await the final result, listen for detailed progress updates, stream incremental progress, or any combination of the above.",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "test": "vitest --run"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/benjamincburns/promieventerator.git"
+  },
+  "author": "Ben Burns",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/benjamincburns/promieventerator/issues"
+  },
+  "homepage": "https://github.com/benjamincburns/promieventerator#readme",
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/node": "^22.10.1",
+    "@vitest/coverage-istanbul": "^2.1.6",
+    "ts-patch": "^3.2.1",
+    "typescript": "^5.7.2",
+    "typescript-transform-paths": "^3.5.2",
+    "vitest": "^2.1.6"
+  }
+}
