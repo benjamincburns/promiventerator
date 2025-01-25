@@ -19,67 +19,41 @@ npm install promiventerator
 
 ## Usage
 
-### Basic Usage
+### Complete Example
 
 ```typescript
-import { Promiventerator } from 'promiventerator';
+import { Promiventerator } from "promiventerator";
 
-// Define your event types
-interface MyEvents {
-  progress: number;      // event with data
-  complete: void;        // event without data
-  data: { value: string };  // complex data
-}
-
-// Create a Promiventerator instance
 const pv = new Promiventerator<string, MyEvents>((resolve) => {
-  setTimeout(() => resolve('done'), 1000);
+  setTimeout(() => pv.emit("progress", 50), 500);
+  setTimeout(() => {
+    pv.emit("complete");
+    resolve("done");
+  }, 1000);
 });
 
 // Listen to events
-pv.on('progress', (value) => console.log(`Progress: ${value}%`));
-pv.on('complete', () => console.log('Finished!'));
+pv.on("progress", (value) => console.log(`event: progress`));
+pv.on("complete", () => console.log("event: complete"));
 
 // Emit events
-await pv.emit('progress', 50);
-await pv.emit('complete');
-
-// Use as a Promise
-const result = await pv; // 'done'
-```
-
-### Using the Iterator Interface
-
-```typescript
-const pv = new Promiventerator<string, MyEvents>(resolve => {
-  setTimeout(() => resolve('done'), 1000);
-});
+await pv.emit("progress", 50);
+await pv.emit("complete");
 
 // Iterate over all events
-for await (const [eventName, data] of { [Symbol.asyncIterator]: () => pv.iterate() }) {
-  console.log(`Event: ${eventName}`, data);
-}
-```
-
-### Type Safety
-
-The Promiventerator provides full type safety for your events:
-
-```typescript
-interface MyEvents {
-  progress: number;
-  complete: void;
+for await (const [eventName, data] of pv) {
+  console.log(`for loop: ${eventName}`, data);
 }
 
-const pv = new Promiventerator<string, MyEvents>(resolve => {
-  resolve('done');
-});
+// wait for the promise to finish
+console.log(await pv);
 
-await pv.emit('progress', 50);     // ✅ OK
-await pv.emit('complete');         // ✅ OK
-await pv.emit('complete', 123);    // ❌ Type error
-await pv.emit('progress');         // ❌ Type error
-await pv.emit('unknown', {});      // ❌ Type error
+// expected output:
+//   event: progress 50
+//   for loop: progress 50
+//   for loop: complete
+//   event: complete
+//   done
 ```
 
 ## API
@@ -96,23 +70,27 @@ new Promiventerator<T, Events>(executor: (resolve, reject) => void)
 ### Methods
 
 - `.on<K>(eventName: K, handler: EventReceiver<Events[K]>): this`
+
   - Add an event listener
   - Returns `this` for chaining
 
 - `.once<K>(eventName: K, handler: EventReceiver<Events[K]>): this`
+
   - Add a one-time event listener
   - Returns `this` for chaining
 
 - `.off<K>(eventName: K, handler: EventReceiver<Events[K]>): this`
+
   - Remove an event listener
   - Returns `this` for chaining
 
 - `.emit<K>(eventName: K, data?: Events[K]): Promise<boolean>`
+
   - Emit an event with optional data
   - Returns a Promise that resolves to `true` if there were listeners
 
-- `.iterate(): AsyncIterator<[EventKey<Events>, Events[EventKey<Events>]] | [EventKey<Events>]>`
+- `[Symbol.asyncIterator](): AsyncIterator<[EventKey<Events>, Events[EventKey<Events>]] | [EventKey<Events>]>`
   - Returns an AsyncIterator for the event stream
   - Includes all historical events
 
-Feel free to contribute! 🎉 
+Feel free to contribute! 🎉

@@ -1,35 +1,84 @@
+/**
+ * Type alias for event keys that must be strings and exist in type T
+ */
 type EventKey<T> = string & keyof T;
-type EventReceiver<T> = T extends void
-  ? () => void | Promise<void>
-  : (params: T) => void | Promise<void>;
 
-class Promiventerator<T, Events = Record<string, unknown>> extends Promise<T> {
+/**
+ * Type alias for event receiver functions. If T is void, the receiver takes no parameters,
+ * otherwise it takes a parameter of type T. Returns void or Promise<void>.
+ */
+type EventReceiver<T> = T extends void ? () => void | Promise<void> : (params: T) => void | Promise<void>;
+
+/**
+ * A Promise-based event emitter class that combines Promise functionality with event handling.
+ * Allows for both Promise-like operations and event emission/listening.
+ *
+ * @typeParam ReturnT - The type of value that the Promise will resolve to
+ * @typeParam EventsT - A record type describing the events and their parameter types
+ *
+ * @example
+ * ```typescript
+ * const pv = new Promiventerator<string, MyEvents>((resolve) => {
+ *   setTimeout(() => pv.emit("progress", 50), 500);
+ *   setTimeout(() => {
+ *     pv.emit("complete");
+ *     resolve("done");
+ *   }, 1000);
+ * });
+ *
+ * // Listen to events
+ * pv.on("progress", (value) => console.log(`event: progress`));
+ * pv.on("complete", () => console.log("event: complete"));
+ *
+ * // Emit events
+ * await pv.emit("progress", 50);
+ * await pv.emit("complete");
+ *
+ * // Iterate over all events
+ * for await (const [eventName, data] of pv) {
+ *   console.log(`for loop: ${eventName}`, data);
+ * }
+ *
+ * // wait for the promise to finish
+ * console.log(await pv);
+ * ```
+ */
+class Promiventerator<ReturnT, EventsT = Record<string, unknown>>
+  extends Promise<ReturnT>
+  implements AsyncIterable<[EventKey<EventsT>, EventsT[EventKey<EventsT>]] | [EventKey<EventsT>]>
+{
+  isDone: boolean = false;
+  value?: ReturnT;
+
   private listeners: Map<
-    EventKey<Events>,
+    EventKey<EventsT>,
     Set<{
-      fn: EventReceiver<Events[EventKey<Events>]>;
+      fn: EventReceiver<EventsT[EventKey<EventsT>]>;
       once: boolean;
     }>
   > = new Map();
 
   private iterators: Set<{
-    push: (
-      value: [EventKey<Events>, Events[EventKey<Events>]] | [EventKey<Events>],
-    ) => void;
+    push: (value: [EventKey<EventsT>, EventsT[EventKey<EventsT>]] | [EventKey<EventsT>]) => void;
     done: () => void;
   }> = new Set();
 
-  private eventHistory: Array<
-    [EventKey<Events>, Events[EventKey<Events>]] | [EventKey<Events>]
-  > = [];
+  private eventHistory: Array<[EventKey<EventsT>, EventsT[EventKey<EventsT>]] | [EventKey<EventsT>]> = [];
 
-  private endResolver: (value: { value: undefined, done: true }) => void;
-  private endPromise: Promise<{ value: undefined, done: true }>;
+  private endResolver: (value: { value: ReturnT; done: true }) => void;
+  private endPromise: Promise<{ value: ReturnT; done: true }>;
 
-  private getListeners<K extends EventKey<Events>>(
+  /**
+   * Gets or creates a Set of listeners for the specified event.
+   *
+   * @param eventName - The name of the event to get listeners for
+   * @returns A Set containing the event listeners
+   * @internal
+   */
+  private getListeners<K extends EventKey<EventsT>>(
     eventName: K,
   ): Set<{
-    fn: EventReceiver<Events[K]>;
+    fn: EventReceiver<EventsT[K]>;
     once: boolean;
   }> {
     let listeners = this.listeners.get(eventName);
@@ -38,51 +87,73 @@ class Promiventerator<T, Events = Record<string, unknown>> extends Promise<T> {
       this.listeners.set(eventName, listeners);
     }
     return listeners as Set<{
-      fn: EventReceiver<Events[K]>;
+      fn: EventReceiver<EventsT[K]>;
       once: boolean;
     }>;
   }
-  
-  constructor(executor: (resolve: (value: T | PromiseLike<T>) => void, reject: (reason?: unknown) => void) => void) {
-    let endResolver: (value: { value: undefined; done: true }) => void;
-    const endPromise = new Promise<{ value: undefined; done: true }>((resolve) => {
+
+  /**
+   * Creates a new Promiventerator instance.
+   *
+   * @param executor - The executor function that defines the Promise behavior
+   */
+  constructor(
+    executor: (resolve: (value: ReturnT | PromiseLike<ReturnT>) => void, reject: (reason?: unknown) => void) => void,
+  ) {
+    let endResolver: (value: { value: ReturnT; done: true }) => void;
+    const endPromise = new Promise<{ value: ReturnT; done: true }>((resolve) => {
       endResolver = resolve;
     });
 
     super((resolve, reject) =>
       executor((value) => {
-        this.endResolver({ value: undefined, done: true });
+        this.endResolver({ value: value as ReturnT, done: true });
+        this.isDone = true;
+        this.value = value as ReturnT;
         resolve(value);
-      }, reject)
+      }, reject),
     );
-    
+
     // biome-ignore lint/style/noNonNullAssertion: tsc and biome are too dumb to know that it's assigned already.
     this.endResolver = endResolver!;
     this.endPromise = endPromise;
   }
 
-  on<K extends EventKey<Events>>(
-    eventName: K,
-    fn: EventReceiver<Events[K]>,
-  ): this {
+  /**
+   * Registers an event listener that will be called every time the specified event is emitted.
+   *
+   * @param eventName - The name of the event to listen for
+   * @param fn - The callback function to execute when the event occurs
+   * @returns The Promiventerator instance for chaining
+   */
+  on<K extends EventKey<EventsT>>(eventName: K, fn: EventReceiver<EventsT[K]>): this {
     const listeners = this.getListeners(eventName);
     listeners.add({ fn, once: false });
     return this;
   }
 
-  once<K extends EventKey<Events>>(
-    eventName: K,
-    fn: EventReceiver<Events[K]>,
-  ): this {
+  /**
+   * Registers an event listener that will be called only once when the specified event is emitted.
+   * After the first emission, the listener is automatically removed.
+   *
+   * @param eventName - The name of the event to listen for
+   * @param fn - The callback function to execute when the event occurs
+   * @returns The Promiventerator instance for chaining
+   */
+  once<K extends EventKey<EventsT>>(eventName: K, fn: EventReceiver<EventsT[K]>): this {
     const listeners = this.getListeners(eventName);
     listeners.add({ fn, once: true });
     return this;
   }
 
-  off<K extends EventKey<Events>>(
-    eventName: K,
-    fn: EventReceiver<Events[K]>,
-  ): this {
+  /**
+   * Removes the specified event listener from the given event.
+   *
+   * @param eventName - The name of the event to remove the listener from
+   * @param fn - The callback function to remove
+   * @returns The Promiventerator instance for chaining
+   */
+  off<K extends EventKey<EventsT>>(eventName: K, fn: EventReceiver<EventsT[K]>): this {
     const listeners = this.getListeners(eventName);
     for (const listener of listeners) {
       if (listener.fn === fn) {
@@ -95,21 +166,23 @@ class Promiventerator<T, Events = Record<string, unknown>> extends Promise<T> {
     return this;
   }
 
-  async emit<K extends EventKey<Events>>(
-    eventName: Events[K] extends void ? K : never,
+  /**
+   * Emits an event with optional data, triggering all registered listeners.
+   *
+   * @param eventName - The name of the event to emit
+   * @param data - The data to pass to the event listeners (if the event type requires data)
+   * @returns A Promise that resolves to true if there were any listeners, false otherwise
+   */
+  async emit<K extends EventKey<EventsT>>(eventName: EventsT[K] extends void ? K : never): Promise<boolean>;
+  async emit<K extends EventKey<EventsT>>(
+    eventName: EventsT[K] extends void ? never : K,
+    data: EventsT[K] extends void ? never : EventsT[K],
   ): Promise<boolean>;
-  async emit<K extends EventKey<Events>>(
-    eventName: Events[K] extends void ? never : K,
-    data: Events[K] extends void ? never : Events[K],
-  ): Promise<boolean>;
-  async emit<K extends EventKey<Events>>(
+  async emit<K extends EventKey<EventsT>>(
     eventName: K,
-    data?: Events[K] extends void ? never : Events[K],
+    data?: EventsT[K] extends void ? never : EventsT[K],
   ): Promise<boolean> {
-    const eventData =
-      data !== undefined
-        ? ([eventName, data] as [K, Events[K]])
-        : ([eventName] as [K]);
+    const eventData = data !== undefined ? ([eventName, data] as [K, EventsT[K]]) : ([eventName] as [K]);
 
     this.eventHistory.push(eventData);
 
@@ -121,10 +194,11 @@ class Promiventerator<T, Events = Record<string, unknown>> extends Promise<T> {
     const promises: Promise<void>[] = [];
 
     for (const listener of listeners) {
-      const result = data !== undefined
-        ? (listener.fn as (params: Events[K]) => void | Promise<void>)(data)
-        : (listener.fn as () => void | Promise<void>)();
-      
+      const result =
+        data !== undefined
+          ? (listener.fn as (params: EventsT[K]) => void | Promise<void>)(data)
+          : (listener.fn as () => void | Promise<void>)();
+
       promises.push(Promise.resolve(result));
 
       if (listener.once) {
@@ -140,26 +214,32 @@ class Promiventerator<T, Events = Record<string, unknown>> extends Promise<T> {
     return promises.length > 0;
   }
 
-  iterate(): AsyncIterator<
-    [EventKey<Events>, Events[EventKey<Events>]] | [EventKey<Events>]
+  /**
+   * Implements the AsyncIterator interface, allowing the Promiventerator to be used
+   * in for-await-of loops to iterate over emitted events.
+   *
+   * @returns An AsyncIterator that yields event tuples and resolves to the final ReturnT value
+   *
+   * @example
+   * ```typescript
+   * for await (const [eventName, data] of promiventerator) {
+   *   console.log(`Event: ${eventName}, Data:`, data);
+   * }
+   * ```
+   */
+  [Symbol.asyncIterator](): AsyncIterator<
+    [EventKey<EventsT>, EventsT[EventKey<EventsT>]] | [EventKey<EventsT>],
+    ReturnT
   > {
     let resolveNext:
       | ((
-          value: IteratorResult<
-            [EventKey<Events>, Events[EventKey<Events>]] | [EventKey<Events>]
-          >,
+          value: IteratorResult<[EventKey<EventsT>, EventsT[EventKey<EventsT>]] | [EventKey<EventsT>], ReturnT>,
         ) => void)
       | null = null;
-    const queue: Array<
-      [EventKey<Events>, Events[EventKey<Events>]] | [EventKey<Events>]
-    > = [...this.eventHistory];
+    const queue: Array<[EventKey<EventsT>, EventsT[EventKey<EventsT>]] | [EventKey<EventsT>]> = [...this.eventHistory];
 
     const iterator = {
-      push: (
-        value:
-          | [EventKey<Events>, Events[EventKey<Events>]]
-          | [EventKey<Events>],
-      ) => {
+      push: (value: [EventKey<EventsT>, EventsT[EventKey<EventsT>]] | [EventKey<EventsT>]) => {
         if (resolveNext) {
           resolveNext({ value, done: false });
           resolveNext = null;
@@ -167,9 +247,9 @@ class Promiventerator<T, Events = Record<string, unknown>> extends Promise<T> {
           queue.push(value);
         }
       },
-      done: () => {
+      done: (value?: ReturnT | PromiseLike<ReturnT>) => {
         if (resolveNext) {
-          resolveNext({ value: undefined, done: true });
+          resolveNext({ value: value as ReturnT, done: true });
           resolveNext = null;
         }
       },
@@ -186,16 +266,21 @@ class Promiventerator<T, Events = Record<string, unknown>> extends Promise<T> {
 
         return Promise.race([
           this.endPromise,
-          new Promise<IteratorResult<[EventKey<Events>, Events[EventKey<Events>]] | [EventKey<Events>]>>((resolve) => {
-            resolveNext = resolve;
-          }),
+          new Promise<IteratorResult<[EventKey<EventsT>, EventsT[EventKey<EventsT>]] | [EventKey<EventsT>], ReturnT>>(
+            (resolve) => {
+              resolveNext = resolve;
+            },
+          ),
         ]);
       },
 
-      return: async () => {
+      return: async (value?: ReturnT | PromiseLike<ReturnT>) => {
         this.iterators.delete(iterator);
-        iterator.done();
-        return { value: undefined, done: true };
+        iterator.done(value);
+        if (value !== undefined && !this.isDone) {
+          this.endResolver({ value: value as ReturnT, done: true });
+        }
+        return this.endPromise;
       },
     };
   }
