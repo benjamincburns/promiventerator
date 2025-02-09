@@ -1,6 +1,6 @@
 {
   "name": "promiventerator",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "A Promise that's also an async EventEmitter that's also an AsyncIterable. Fully typed, and cancelable. Lets a single function return a result that allows the caller to await the final result, listen for detailed progress updates, stream incremental progress, or any combination of the above.",
   "main": "dist/index.js",
   "type": "module",
