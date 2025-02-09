@@ -1,9 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Promiventerator } from "./index.js";
 
 interface TestEvents {
   progress: number;
-  // biome-ignore lint/suspicious/noConfusingVoidType: <explanation>
   complete: void;
   data: { value: string };
   resolve: string;
@@ -218,7 +217,8 @@ describe("Promiventerator", () => {
     pv.once("complete", () => consoleLog("event: complete"));
 
     // Iterate over all events
-    for await (const [eventName, data] of pv) {
+    for await (const event of pv) {
+      const [eventName, data] = event;
       if (eventName === "progress") {
         consoleLog(`for loop: ${eventName} ${data}`);
       } else {

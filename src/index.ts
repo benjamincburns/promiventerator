@@ -1,13 +1,22 @@
 /**
  * Type alias for event keys that must be strings and exist in type T
  */
-type EventKey<T> = string & keyof T;
+export type EventKey<EventsT> = keyof EventsT;
 
 /**
  * Type alias for event receiver functions. If T is void, the receiver takes no parameters,
  * otherwise it takes a parameter of type T. Returns void or Promise<void>.
  */
-type EventReceiver<T> = T extends void ? () => void | Promise<void> : (params: T) => void | Promise<void>;
+export type EventReceiver<EventPayloadT> = EventPayloadT extends void
+  ? () => void | Promise<void>
+  : (params: EventPayloadT) => void | Promise<void>;
+
+/**
+ * The type yielded by a Promiventerator's AsyncIterator
+ */
+type EventIteratorValue<EventsT> = {
+  [K in keyof EventsT]: EventsT[K] extends void ? [K] : [K, EventsT[K]];
+}[keyof EventsT];
 
 /**
  * A Promise-based event emitter class that combines Promise functionality with event handling.
@@ -43,11 +52,8 @@ type EventReceiver<T> = T extends void ? () => void | Promise<void> : (params: T
  * console.log(await pv);
  * ```
  */
-class Promiventerator<ReturnT, EventsT = Record<string, unknown>>
-  extends Promise<ReturnT>
-  implements AsyncIterable<[EventKey<EventsT>, EventsT[EventKey<EventsT>]] | [EventKey<EventsT>]>
-{
-  isDone: boolean = false;
+class Promiventerator<ReturnT, EventsT> extends Promise<ReturnT> implements AsyncIterable<EventIteratorValue<EventsT>> {
+  isDone = false;
   value?: ReturnT;
 
   private listeners: Map<
@@ -59,11 +65,11 @@ class Promiventerator<ReturnT, EventsT = Record<string, unknown>>
   > = new Map();
 
   private iterators: Set<{
-    push: (value: [EventKey<EventsT>, EventsT[EventKey<EventsT>]] | [EventKey<EventsT>]) => void;
+    push: (value: EventIteratorValue<EventsT>) => void;
     done: () => void;
   }> = new Set();
 
-  private eventHistory: Array<[EventKey<EventsT>, EventsT[EventKey<EventsT>]] | [EventKey<EventsT>]> = [];
+  private eventHistory: EventIteratorValue<EventsT>[] = [];
 
   private endResolver: (value: { value: ReturnT; done: true }) => void;
   private endPromise: Promise<{ value: ReturnT; done: true }>;
@@ -98,7 +104,10 @@ class Promiventerator<ReturnT, EventsT = Record<string, unknown>>
    * @param executor - The executor function that defines the Promise behavior
    */
   constructor(
-    executor: (resolve: (value: ReturnT | PromiseLike<ReturnT>) => void, reject: (reason?: unknown) => void) => void,
+    executor: (
+      resolve: (value: ReturnT | PromiseLike<ReturnT>) => void,
+      reject: (reason?: unknown) => void,
+    ) => void | Promise<void>,
   ) {
     let endResolver: (value: { value: ReturnT; done: true }) => void;
     const endPromise = new Promise<{ value: ReturnT; done: true }>((resolve) => {
@@ -184,10 +193,10 @@ class Promiventerator<ReturnT, EventsT = Record<string, unknown>>
   ): Promise<boolean> {
     const eventData = data !== undefined ? ([eventName, data] as [K, EventsT[K]]) : ([eventName] as [K]);
 
-    this.eventHistory.push(eventData);
+    this.eventHistory.push(eventData as unknown as EventIteratorValue<EventsT>);
 
     for (const iterator of this.iterators) {
-      iterator.push(eventData);
+      iterator.push(eventData as unknown as EventIteratorValue<EventsT>);
     }
 
     const listeners = this.getListeners(eventName);
@@ -227,19 +236,12 @@ class Promiventerator<ReturnT, EventsT = Record<string, unknown>>
    * }
    * ```
    */
-  [Symbol.asyncIterator](): AsyncIterator<
-    [EventKey<EventsT>, EventsT[EventKey<EventsT>]] | [EventKey<EventsT>],
-    ReturnT
-  > {
-    let resolveNext:
-      | ((
-          value: IteratorResult<[EventKey<EventsT>, EventsT[EventKey<EventsT>]] | [EventKey<EventsT>], ReturnT>,
-        ) => void)
-      | null = null;
-    const queue: Array<[EventKey<EventsT>, EventsT[EventKey<EventsT>]] | [EventKey<EventsT>]> = [...this.eventHistory];
+  [Symbol.asyncIterator](): AsyncIterator<EventIteratorValue<EventsT>, ReturnT> {
+    let resolveNext: ((value: IteratorResult<EventIteratorValue<EventsT>, ReturnT>) => void) | null = null;
+    const queue: Array<EventIteratorValue<EventsT>> = [...this.eventHistory];
 
     const iterator = {
-      push: (value: [EventKey<EventsT>, EventsT[EventKey<EventsT>]] | [EventKey<EventsT>]) => {
+      push: (value: EventIteratorValue<EventsT>) => {
         if (resolveNext) {
           resolveNext({ value, done: false });
           resolveNext = null;
@@ -266,11 +268,9 @@ class Promiventerator<ReturnT, EventsT = Record<string, unknown>>
 
         return Promise.race([
           this.endPromise,
-          new Promise<IteratorResult<[EventKey<EventsT>, EventsT[EventKey<EventsT>]] | [EventKey<EventsT>], ReturnT>>(
-            (resolve) => {
-              resolveNext = resolve;
-            },
-          ),
+          new Promise<IteratorResult<EventIteratorValue<EventsT>, ReturnT>>((resolve) => {
+            resolveNext = resolve;
+          }),
         ]);
       },
 

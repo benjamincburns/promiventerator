@@ -1,7 +1,7 @@
 {
   "name": "promiventerator",
   "version": "0.0.1",
-  "description": "A Promise that's also an async EventEmitter that's also a filterable AsyncIterable. Fully typed, and cancelable. Lets a single function return a result that allows the caller to await the final result, listen for detailed progress updates, stream incremental progress, or any combination of the above.",
+  "description": "A Promise that's also an async EventEmitter that's also an AsyncIterable. Fully typed, and cancelable. Lets a single function return a result that allows the caller to await the final result, listen for detailed progress updates, stream incremental progress, or any combination of the above.",
   "main": "dist/index.js",
   "type": "module",
   "scripts": {
@@ -10,7 +10,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/benjamincburns/promieventerator.git"
+    "url": "git+https://github.com/benjamincburns/promiventerator.git"
   },
   "author": "Ben Burns",
   "license": "MIT",
