@@ -15,9 +15,9 @@
   "author": "Ben Burns",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/benjamincburns/promieventerator/issues"
+    "url": "https://github.com/benjamincburns/promiventerator/issues"
   },
-  "homepage": "https://github.com/benjamincburns/promieventerator#readme",
+  "homepage": "https://github.com/benjamincburns/promiventerator#readme",
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
     "@types/node": "^22.10.1",
