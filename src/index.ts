@@ -52,7 +52,10 @@ type EventIteratorValue<EventsT> = {
  * console.log(await pv);
  * ```
  */
-class Promiventerator<ReturnT, EventsT> extends Promise<ReturnT> implements AsyncIterable<EventIteratorValue<EventsT>> {
+export class Promiventerator<ReturnT, EventsT>
+  extends Promise<ReturnT>
+  implements AsyncIterable<EventIteratorValue<EventsT>>
+{
   isDone = false;
   value?: ReturnT;
 
@@ -82,7 +85,7 @@ class Promiventerator<ReturnT, EventsT> extends Promise<ReturnT> implements Asyn
    * @internal
    */
   private getListeners<K extends EventKey<EventsT>>(
-    eventName: K,
+    eventName: K
   ): Set<{
     fn: EventReceiver<EventsT[K]>;
     once: boolean;
@@ -106,13 +109,15 @@ class Promiventerator<ReturnT, EventsT> extends Promise<ReturnT> implements Asyn
   constructor(
     executor: (
       resolve: (value: ReturnT | PromiseLike<ReturnT>) => void,
-      reject: (reason?: unknown) => void,
-    ) => void | Promise<void>,
+      reject: (reason?: unknown) => void
+    ) => void | Promise<void>
   ) {
     let endResolver: (value: { value: ReturnT; done: true }) => void;
-    const endPromise = new Promise<{ value: ReturnT; done: true }>((resolve) => {
-      endResolver = resolve;
-    });
+    const endPromise = new Promise<{ value: ReturnT; done: true }>(
+      (resolve) => {
+        endResolver = resolve;
+      }
+    );
 
     super((resolve, reject) =>
       executor((value) => {
@@ -120,7 +125,7 @@ class Promiventerator<ReturnT, EventsT> extends Promise<ReturnT> implements Asyn
         this.isDone = true;
         this.value = value as ReturnT;
         resolve(value);
-      }, reject),
+      }, reject)
     );
 
     // biome-ignore lint/style/noNonNullAssertion: tsc and biome are too dumb to know that it's assigned already.
@@ -135,7 +140,10 @@ class Promiventerator<ReturnT, EventsT> extends Promise<ReturnT> implements Asyn
    * @param fn - The callback function to execute when the event occurs
    * @returns The Promiventerator instance for chaining
    */
-  on<K extends EventKey<EventsT>>(eventName: K, fn: EventReceiver<EventsT[K]>): this {
+  on<K extends EventKey<EventsT>>(
+    eventName: K,
+    fn: EventReceiver<EventsT[K]>
+  ): this {
     const listeners = this.getListeners(eventName);
     listeners.add({ fn, once: false });
     return this;
@@ -149,7 +157,10 @@ class Promiventerator<ReturnT, EventsT> extends Promise<ReturnT> implements Asyn
    * @param fn - The callback function to execute when the event occurs
    * @returns The Promiventerator instance for chaining
    */
-  once<K extends EventKey<EventsT>>(eventName: K, fn: EventReceiver<EventsT[K]>): this {
+  once<K extends EventKey<EventsT>>(
+    eventName: K,
+    fn: EventReceiver<EventsT[K]>
+  ): this {
     const listeners = this.getListeners(eventName);
     listeners.add({ fn, once: true });
     return this;
@@ -162,7 +173,10 @@ class Promiventerator<ReturnT, EventsT> extends Promise<ReturnT> implements Asyn
    * @param fn - The callback function to remove
    * @returns The Promiventerator instance for chaining
    */
-  off<K extends EventKey<EventsT>>(eventName: K, fn: EventReceiver<EventsT[K]>): this {
+  off<K extends EventKey<EventsT>>(
+    eventName: K,
+    fn: EventReceiver<EventsT[K]>
+  ): this {
     const listeners = this.getListeners(eventName);
     for (const listener of listeners) {
       if (listener.fn === fn) {
@@ -182,16 +196,21 @@ class Promiventerator<ReturnT, EventsT> extends Promise<ReturnT> implements Asyn
    * @param data - The data to pass to the event listeners (if the event type requires data)
    * @returns A Promise that resolves to true if there were any listeners, false otherwise
    */
-  async emit<K extends EventKey<EventsT>>(eventName: EventsT[K] extends void ? K : never): Promise<boolean>;
+  async emit<K extends EventKey<EventsT>>(
+    eventName: EventsT[K] extends void ? K : never
+  ): Promise<boolean>;
   async emit<K extends EventKey<EventsT>>(
     eventName: EventsT[K] extends void ? never : K,
-    data: EventsT[K] extends void ? never : EventsT[K],
+    data: EventsT[K] extends void ? never : EventsT[K]
   ): Promise<boolean>;
   async emit<K extends EventKey<EventsT>>(
     eventName: K,
-    data?: EventsT[K] extends void ? never : EventsT[K],
+    data?: EventsT[K] extends void ? never : EventsT[K]
   ): Promise<boolean> {
-    const eventData = data !== undefined ? ([eventName, data] as [K, EventsT[K]]) : ([eventName] as [K]);
+    const eventData =
+      data !== undefined
+        ? ([eventName, data] as [K, EventsT[K]])
+        : ([eventName] as [K]);
 
     this.eventHistory.push(eventData as unknown as EventIteratorValue<EventsT>);
 
@@ -236,8 +255,13 @@ class Promiventerator<ReturnT, EventsT> extends Promise<ReturnT> implements Asyn
    * }
    * ```
    */
-  [Symbol.asyncIterator](): AsyncIterator<EventIteratorValue<EventsT>, ReturnT> {
-    let resolveNext: ((value: IteratorResult<EventIteratorValue<EventsT>, ReturnT>) => void) | null = null;
+  [Symbol.asyncIterator](): AsyncIterator<
+    EventIteratorValue<EventsT>,
+    ReturnT
+  > {
+    let resolveNext:
+      | ((value: IteratorResult<EventIteratorValue<EventsT>, ReturnT>) => void)
+      | null = null;
     const queue: Array<EventIteratorValue<EventsT>> = [...this.eventHistory];
 
     const iterator = {
@@ -268,9 +292,11 @@ class Promiventerator<ReturnT, EventsT> extends Promise<ReturnT> implements Asyn
 
         return Promise.race([
           this.endPromise,
-          new Promise<IteratorResult<EventIteratorValue<EventsT>, ReturnT>>((resolve) => {
-            resolveNext = resolve;
-          }),
+          new Promise<IteratorResult<EventIteratorValue<EventsT>, ReturnT>>(
+            (resolve) => {
+              resolveNext = resolve;
+            }
+          ),
         ]);
       },
 
@@ -285,5 +311,3 @@ class Promiventerator<ReturnT, EventsT> extends Promise<ReturnT> implements Asyn
     };
   }
 }
-
-export { Promiventerator };
